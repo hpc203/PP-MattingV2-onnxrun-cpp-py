@@ -69,7 +69,6 @@ if __name__ == '__main__':
     parser.add_argument('--videopath', type=str, default='images/3.mp4', help="video path")
     args = parser.parse_args()
 
-    # Initialize YOLOv7 object detector
     segmentor = PP_MattingV2(args.modelpath, conf_thres=args.confThreshold)
     if args.use_video != 1:
         srcimg = cv2.imread(args.imgpath)
