@@ -4,7 +4,7 @@
 #include <string>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
-//#include <cuda_provider_factory.h>  ///Èç¹ûÊ¹ÓÃcuda¼ÓËÙ£¬ĞèÒªÈ¡Ïû×¢ÊÍ
+//#include <cuda_provider_factory.h>  ///å¦‚æœä½¿ç”¨cudaåŠ é€Ÿï¼Œéœ€è¦å–æ¶ˆæ³¨é‡Š
 #include <onnxruntime_cxx_api.h>
 
 using namespace cv;
@@ -36,12 +36,12 @@ private:
 PP_MattingV2::PP_MattingV2()
 {
 	string model_path = "weights/ppmattingv2_stdc1_human_480x640.onnx";
-	std::wstring widestr = std::wstring(model_path.begin(), model_path.end());  ////windowsĞ´·¨
-	///OrtStatus* status = OrtSessionOptionsAppendExecutionProvider_CUDA(sessionOptions, 0);   ///Èç¹ûÊ¹ÓÃcuda¼ÓËÙ£¬ĞèÒªÈ¡Ïû×¢ÊÍ
+	std::wstring widestr = std::wstring(model_path.begin(), model_path.end());  ////windowså†™æ³•
+	///OrtStatus* status = OrtSessionOptionsAppendExecutionProvider_CUDA(sessionOptions, 0);   ///å¦‚æœä½¿ç”¨cudaåŠ é€Ÿï¼Œéœ€è¦å–æ¶ˆæ³¨é‡Š
 
 	sessionOptions.SetGraphOptimizationLevel(ORT_ENABLE_BASIC);
-	ort_session = new Session(env, widestr.c_str(), sessionOptions); ////windowsĞ´·¨
-	////ort_session = new Session(env, model_path.c_str(), sessionOptions); ////linuxĞ´·¨
+	ort_session = new Session(env, widestr.c_str(), sessionOptions); ////windowså†™æ³•
+	////ort_session = new Session(env, model_path.c_str(), sessionOptions); ////linuxå†™æ³•
 
 	size_t numInputNodes = ort_session->GetInputCount();
 	size_t numOutputNodes = ort_session->GetOutputCount();
@@ -94,7 +94,7 @@ Mat PP_MattingV2::inference(Mat srcimg)
 
 	auto allocator_info = MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
 	Value input_tensor_ = Value::CreateTensor<float>(allocator_info, input_image_.data(), input_image_.size(), input_shape_.data(), input_shape_.size());
-	vector<Value> ort_outputs = ort_session->Run(RunOptions{ nullptr }, input_names.data(), &input_tensor_, 1, output_names.data(), output_names.size());   // ¿ªÊ¼ÍÆÀí
+	vector<Value> ort_outputs = ort_session->Run(RunOptions{ nullptr }, input_names.data(), &input_tensor_, 1, output_names.data(), output_names.size());   // å¼€å§‹æ¨ç†
 	// post process.																																					
 	Value &mask_pred = ort_outputs.at(0);
 	const int out_h = this->output_node_dims[0][2];
@@ -104,9 +104,23 @@ Mat PP_MattingV2::inference(Mat srcimg)
 	Mat segmentation_map;
 	Mat mask_out(out_h, out_w, CV_32FC1, mask_ptr);
 	resize(mask_out, segmentation_map, Size(srcimg.cols, srcimg.rows));
-	Mat dstimg = srcimg.clone();
 
-	for (int h = 0; h < srcimg.rows; h++)
+	///æ›´é«˜æ˜çš„å†™æ³•ï¼Œä¸ç”¨forå¾ªç¯éå†æ¯ä¸ªåƒç´ èµ‹å€¼ï¼Œè¿™æ ·èƒ½æé«˜ç¨‹åºè¿è¡Œæ•ˆç‡
+	Mat three_channel = Mat::zeros(srcimg.rows, srcimg.cols, CV_32FC3);
+	vector<Mat> channels(3);
+	for (int i = 0; i < 3; i++)
+	{
+		channels[i] = segmentation_map;
+	}
+	merge(channels, three_channel);
+
+	Mat rgbimg = srcimg.clone();
+	rgbimg.setTo(cv::Scalar(0,255,0), three_channel > this->conf_threshold);
+	Mat dstimg;
+	addWeighted(srcimg, 0.5, rgbimg, 0.5, 0, dstimg);
+	
+	/*Mat dstimg = srcimg.clone();
+	for (int h = 0; h < srcimg.rows; h++)    ///ç²—æš´çš„éå†æ¯ä¸ªåƒç´ ç‚¹èµ‹å€¼
 	{
 		for (int w = 0; w < srcimg.cols; w++)
 		{
@@ -121,7 +135,7 @@ Mat PP_MattingV2::inference(Mat srcimg)
 				dstimg.at<Vec3b>(h, w)[2] = uchar(r * 0.5 + 1);
 			}
 		}
-	}
+	}*/
 	return dstimg;
 }
 
@@ -131,8 +145,8 @@ int main()
 	PP_MattingV2 mynet;
 	if (use_video)
 	{
-		cv::VideoCapture video_capture(0);  ///µçÄÔµÄÉãÏñÍ·
-		//cv::VideoCapture video_capture(images/3.mp4);  ///ÊÓÆµÎÄ¼ş
+		cv::VideoCapture video_capture(0);  ///ç”µè„‘çš„æ‘„åƒå¤´
+		//cv::VideoCapture video_capture(images/3.mp4);  ///è§†é¢‘æ–‡ä»¶
 		if (!video_capture.isOpened())
 		{
 			std::cout << "Can not open video " << endl;
